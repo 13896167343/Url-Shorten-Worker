@@ -1,28 +1,27 @@
 const config = {
-  no_ref: "off", //Control the HTTP referrer header, if you want to create an anonymous link that will hide the HTTP Referer header, please set to "on" .
-  theme:"theme/captcha",//Homepage theme, use the empty value for default theme. To use urlcool theme, please fill with "theme/urlcool" . If you need captcha feature, you need to use captcha theme.
-  cors: "on",//Allow Cross-origin resource sharing for API requests.
-  unique_link:true,//If it is true, the same long url will be shorten into the same short url
-  custom_link:false,//Allow users to customize the short url.
-  safe_browsing_api_key: "", //Enter Google Safe Browsing API Key to enable url safety check before redirect.
-  
-  // CAPTCHA Configuration
+  no_ref: "off", // 控制 HTTP Referer 请求头；若需匿名链接隐藏 Referer，请设为 "on"
+  theme:"theme/captcha",// 首页主题；默认主题留空。使用 urlcool 主题填 "theme"；使用验证码功能需选择 captcha 主题。
+  cors: "on",// 允许 API 请求的跨域共享
+  unique_link:true,// 若为 true，相同长链接将生成相同短链接
+  custom_link:false,// 允许用户自定义短链接
+  safe_browsing_api_key: "", // 填入 Google Safe Browsing API Key 以在跳转前进行链接安全检查
+
+  // 验证码配置
   captcha: {
-    enabled: true, // Master switch for CAPTCHA service
-    api_endpoint: "https://captcha.gurl.eu.org/api", // CAP Worker API endpoint
-    require_on_create: true, // Require CAPTCHA when creating short links
-    require_on_access: true, // Require CAPTCHA when accessing short links
-    timeout: 5000, // API request timeout in milliseconds
-    fallback_on_error: true, // Allow operations when CAPTCHA service is down
-    max_retries: 2, // Maximum retry attempts for CAPTCHA API calls
+    enabled: true, // 验证码服务总开关
+    api_endpoint: "https://captcha.gurl.eu.org/api", // CAP Worker API 端点
+    require_on_create: true, // 创建短链接时是否要求验证码
+    require_on_access: true, // 访问短链接时是否要求验证码
+    timeout: 5000, // API 请求超时时间（毫秒）
+    fallback_on_error: true, // 当验证码服务故障时是否允许降级放行
+    max_retries: 2, // 验证码 API 调用的最大重试次数
   }
   }
   
   const html404 = `<!DOCTYPE html>
   <body>
-    <h1>404 Not Found.</h1>
-    <p>The url you visit is not found.</p>
-    <a href="https://github.com/xyTom/Url-Shorten-Worker/" target="_self">Fork me on GitHub</a>
+    <h1>404 未找到</h1>
+    <p>您访问的链接不存在。</p>
   </body>`
   
   let response_header={
@@ -113,12 +112,12 @@ const config = {
     }
   }
   
-  // ============ CAPTCHA Service Integration ============
+  // ============ 验证码服务集成 ============
   
   /**
-   * Validates CAPTCHA token with retry and fallback mechanism
-   * @param {string} token - The CAPTCHA token to validate
-   * @param {boolean} keepToken - Whether to keep the token for reuse
+   * 验证验证码令牌（带重试与降级策略）
+   * @param {string} token - 待验证的验证码令牌
+   * @param {boolean} keepToken - 是否保留令牌以复用
    * @returns {Promise<{success: boolean, error?: string, degraded?: boolean}>}
    */
   async function validateCaptchaToken(token, keepToken = false) {
@@ -187,8 +186,8 @@ const config = {
   }
   
   /**
-   * Checks if CAPTCHA is required for the current operation
-   * @param {string} operation - 'create' or 'access'
+   * 判断当前操作是否需要验证码
+   * @param {string} operation - 'create' 或 'access'
    * @returns {boolean}
    */
   function isCaptchaRequired(operation) {
@@ -207,8 +206,8 @@ const config = {
   }
   
   /**
-   * Extracts CAPTCHA token from request
-   * @param {Request} request - The incoming request
+   * 从请求中提取验证码令牌
+   * @param {Request} request - 传入的请求对象
    * @returns {Promise<string|null>}
    */
   async function extractCaptchaToken(request) {
@@ -228,16 +227,16 @@ const config = {
     return url.searchParams.get('captcha_token') || url.searchParams.get('token') || null;
   }
   
-  // ============ End CAPTCHA Service Integration ============
+  // ============ 验证码服务集成结束 ============
   async function handleRequest(request) {
     console.log(request)
     
-    // Handle POST request - Create short link
+    // 处理 POST 请求 - 创建短链接
     if (request.method === "POST") {
       let req = await request.json()
       console.log(req["url"])
       
-      // Validate URL format
+      // 校验 URL 格式
       if (!await checkURL(req["url"])) {
         return new Response(JSON.stringify({
           status: 500,
@@ -248,7 +247,7 @@ const config = {
         })
       }
   
-      // CAPTCHA validation for link creation
+      // 创建短链接时进行验证码校验
       if (isCaptchaRequired('create')) {
         const captchaToken = req.captcha_token || req.captchaToken || req.token;
         
@@ -276,13 +275,13 @@ const config = {
           })
         }
   
-        // Log if service is degraded
+        // 若服务降级，记录日志
         if (validation.degraded) {
           console.warn("Request processed under CAPTCHA service degradation");
         }
       }
   
-      // Process short link creation
+      // 处理短链接生成逻辑
       let stat, random_key
       if (config.unique_link) {
         let url_sha512 = await sha512(req["url"])
@@ -323,14 +322,14 @@ const config = {
       })
     }
   
-    // Handle GET request - Access short link
+    // 处理 GET 请求 - 访问短链接
     const requestURL = new URL(request.url)
     const path = requestURL.pathname.split("/")[1]
     const params = requestURL.search
   
     console.log(path)
     
-    // Serve homepage
+    // 返回首页
     if (!path) {
       const html = await fetch("https://xytom.github.io/Url-Shorten-Worker/" + config.theme + "/index.html")
       
@@ -341,7 +340,7 @@ const config = {
       })
     }
   
-    // Retrieve the target URL
+    // 读取目标链接
     const value = await LINKS.get(path)
     let location
   
@@ -353,19 +352,19 @@ const config = {
     console.log(value)
   
     if (location) {
-      // CAPTCHA validation for link access
+      // 访问短链接时进行验证码校验
       if (isCaptchaRequired('access')) {
         const captchaToken = await extractCaptchaToken(request)
         
         if (!captchaToken) {
-          // Return CAPTCHA challenge page
+          // 返回验证码挑战页面
           const captchaPage = `
   <!DOCTYPE html>
   <html lang="en">
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verification Required</title>
+    <title>需要验证</title>
     <script src="https://captcha.gurl.eu.org/cap.min.js"></script>
     <style>
       body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; 
@@ -381,12 +380,12 @@ const config = {
   </head>
   <body>
     <div class="container">
-      <h1>🔒 Verification Required</h1>
-      <p>Please complete the CAPTCHA below to access this link.</p>
+      <h1>🔒 需要验证</h1>
+      <p>请完成下方验证码以访问该链接。</p>
       
       <cap-widget id="cap" data-cap-api-endpoint="https://captcha.gurl.eu.org/api/"></cap-widget>
       
-      <div class="loading" id="loading">Verifying and redirecting...</div>
+      <div class="loading" id="loading">正在验证并跳转...</div>
     </div>
   
     <script>
@@ -397,7 +396,7 @@ const config = {
         const token = e.detail.token;
         loading.style.display = "block";
         
-        // Redirect with token
+        // 携带令牌跳转
         window.location.href = window.location.pathname + "?captcha_token=" + encodeURIComponent(token);
       });
     </script>
@@ -418,11 +417,11 @@ const config = {
           return new Response(`
   <!DOCTYPE html>
   <html>
-  <head><title>Verification Failed</title></head>
+  <head><title>验证失败</title></head>
   <body>
-    <h1>❌ Verification Failed</h1>
-    <p>${validation.error || 'CAPTCHA verification failed'}</p>
-    <a href="${requestURL.pathname}">Try again</a>
+    <h1>❌ 验证失败</h1>
+    <p>${validation.error || '验证码校验失败'}</p>
+    <a href="${requestURL.pathname}">重试</a>
   </body>
   </html>`, {
             headers: {
@@ -437,7 +436,7 @@ const config = {
         }
       }
   
-      // Safe browsing check
+      // 安全浏览检查
       if (config.safe_browsing_api_key) {
         if (!(await is_url_safe(location))) {
           let warning_page = await fetch("https://xytom.github.io/Url-Shorten-Worker/safe-browsing.html")
@@ -451,7 +450,7 @@ const config = {
         }
       }
   
-      // Redirect to target URL
+      // 跳转到目标链接
       if (config.no_ref == "on") {
         let no_ref = await fetch("https://xytom.github.io/Url-Shorten-Worker/no-ref.html")
         no_ref = await no_ref.text()
@@ -466,7 +465,7 @@ const config = {
       }
     }
     
-    // If request not in kv, return 404
+    // 未命中 KV 时返回 404
     return new Response(html404, {
       headers: {
         "content-type": "text/html;charset=UTF-8",
